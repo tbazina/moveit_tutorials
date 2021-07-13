@@ -65,7 +65,7 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
     """
     Planning to a Joint Goal
     """
-    # The Panda’s zero configuration is at a singularity so the first thing we
+    # The Pandas zero configuration is at a singularity so the first thing we
     # want to do is move it to a slightly better configuration.
 
     # We can get the joint values from the group and adjust some of the values:
@@ -238,12 +238,56 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
 def main():
   try:
     print "Setting up the moveit_commander ..."
-    tutorial = MoveGroupPythonIntefaceTutorial()
+    tutorial = MoveGroupPythonInterfaceTutorialCustom()
 
     print "============ Press `Enter` to execute a movement using a joint state goal ..."
     raw_input()
     tutorial.go_to_joint_state()
 
+    print "============ Press `Enter` to execute a movement using a pose goal ..."
+    raw_input()
+    tutorial.go_to_pose_goal()
+
+    print "============ Press `Enter` to plan and display a Cartesian path ..."
+    raw_input()
+    cartesian_plan, fraction = tutorial.plan_cartesian_path()
+
+    print "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
+    raw_input()
+    tutorial.display_trajectory(cartesian_plan)
+
+    print "============ Press `Enter` to execute a saved path ..."
+    raw_input()
+    tutorial.execute_plan(cartesian_plan)
+
+    print "============ Press `Enter` to add a box to the planning scene ..."
+    raw_input()
+    tutorial.add_box()
+
+    print "============ Press `Enter` to attach a Box to the Panda robot ..."
+    raw_input()
+    tutorial.attach_box()
+
+    print "============ Press `Enter` to plan and execute a path with an attached collision object ..."
+    raw_input()
+    cartesian_plan, fraction = tutorial.plan_cartesian_path(scale=-1)
+    tutorial.execute_plan(cartesian_plan)
+
+    print "============ Press `Enter` to detach the box from the Panda robot ..."
+    raw_input()
+    tutorial.detach_box()
+
+    print "============ Press `Enter` to remove the box from the planning scene ..."
+    raw_input()
+    tutorial.remove_box()
+
     print "============ Python tutorial demo complete!"
   except rospy.ROSInterruptException:
-    print
+    print 'ROS'
+    return
+  except KeyboardInterrupt:
+    print 'KEYBOARD INTERRRUPTED'
+    return
+  
+if __name__ == "__main__":
+  main()
