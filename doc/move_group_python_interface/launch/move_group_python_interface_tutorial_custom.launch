@@ -1,7 +1,7 @@
 <<?xml version="1.0"?>
 <launch>
   <node
-  pkg="moveit_tutorials" type="move_group_python_interface_tutorial_custom.launch"
+  pkg="moveit_tutorials" type="move_group_python_interface_tutorial_custom.py"
   name="move_group_python_interface_tutorial_custom", respawn="false"
   output="screen">
   </node>

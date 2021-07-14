@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
 import sys
 import copy
@@ -6,9 +7,29 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
-from math import pi
+import numpy as np
+from math import pi, tau, dist, cos
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
+
+def all_close(goal, actual, tolerance):
+  """
+  Testing if robot actual and goal pose are within tolerance
+  """
+  if type(goal) is list:
+    return np.all(np.abs(np.array(actual) - np.array(goal)) <= tolerance)
+  elif type(goal) is geometry_msgs.msg.PoseStamped:
+    return all_close(goal.pose, actual.pose, tolerance)
+  elif type(goal) is geometry_msgs.msg.Pose:
+    x0, y0, z0, qx0, qy0, qz0, qw0 = pose_to_list(actual)
+    x1, y1, z1, qx1, qy1, qz1, qw1 = pose_to_list(actual)
+    # Euclidean distance
+    d = dist((x1, y1, z1), (x0, y0, z0))
+    # phi = angle between orientations
+    cos_phi_half = np.abs(qx0 * qx1 + qy0 * qy1 + qz0 * qz1 + qw0 * qw1)
+    return d <= tolerance and cos_phi_half >= cos(tolerance / 2.0)
+  
+  return True
 
 class MoveGroupPythonInterfaceTutorialCustom(object):
   """
@@ -36,20 +57,20 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
     # Getting Basic Information
     # We can get the name of the reference frame for this robot:
     planning_frame = move_group.get_planning_frame()
-    print '========== Planning frame: {}'.format(planning_frame)
+    print('========== Planning frame: {}'.format(planning_frame))
 
     # We can also print the name of the end-effector link for this group:
     eef_link = move_group.get_end_effector_link()
-    print '========== End effector link: {}'.format(eef_link)
+    print('========== End effector link: {}'.format(eef_link))
 
     # We can get a list of all the groups in the robot:
     group_names = robot.get_group_names()
-    print '========== Available Planning Groups: {}'.format(group_names)
+    print('========== Available Planning Groups: {}'.format(group_names))
 
     # Sometimes for debugging it is useful to print the entire state of the robot:
-    print '========== Printing robot state'
-    print robot.get_current_state()
-    print ""
+    print('========== Printing robot state')
+    print(robot.get_current_state())
+    print('')
 
     # Misc Variables
     self.box_name = ''
@@ -85,6 +106,12 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
     # Calling ``stop()`` ensures that there is no residual movement
     self.move_group.stop()
 
+    # Check if pose reached
+    current_joints = self.move_group.get_current_joint_values()
+    goal_reached = all_close(joint_goal, current_joints, 0.01)
+    print('Goal reached: {}'.format(goal_reached))
+    return goal_reached
+
   def go_to_pose_goal(self):
     """
     Planning to a Pose Goal
@@ -99,12 +126,18 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
     self.move_group.set_pose_target(pose_goal)
 
     # Now, we call the planner to compute the plan and execute it.
-    plan = move_group.go(wait=True)
+    self.move_group.go(wait=True)
     # Calling `stop()` ensures that there 
     self.move_group.stop()
     # It is always good to clear your targets after planning with poses.
     # Note: there is no equivalent function for clear_joint_value_targets()
     self.move_group.clear_pose_targets()
+
+    # Check if pose reached
+    current_pose = self.move_group.get_current_pose().pose
+    goal_reached = all_close(pose_goal, current_pose, 0.01)
+    print('Goal reached: {}'.format(goal_reached))
+    return goal_reached
 
   def plan_cartesian_path(self, scale=1):
     """
@@ -162,12 +195,12 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
     # First, we will create a box in the planning scene at the location of the left
     # finger:
     box_pose = geometry_msgs.msg.PoseStamped()
-    box_pose.header.frame_id = 'panda_leftfinger'
+    box_pose.header.frame_id = 'panda_hand'
     box_pose.pose.orientation.w = 1.0
     # slightly above the end effector
-    box_pose.pose.position.z = 0.07
+    box_pose.pose.position.z = 0.11
     self.box_name = 'box'
-    self.scene.add_box(self.box_name, box_pose, size=(0.1, 0.1, 0.1))
+    self.scene.add_box(self.box_name, box_pose, size=(0.075, 0.075, 0.075))
     return self.wait_for_state_update(box_is_known=True, timeout=timeout)
 
 
@@ -185,7 +218,7 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
 
       # Test if the box is in the scene.
       # Note that attaching the box will remove it from known_objects
-      is_known = box_name in self.scene.get_known_object_names()
+      is_known = self.box_name in self.scene.get_known_object_names()
 
       # Test if we are in the expected state
       if (box_is_attached == is_attached) and (box_is_known == is_known):
@@ -237,57 +270,47 @@ class MoveGroupPythonInterfaceTutorialCustom(object):
 
 def main():
   try:
-    print "Setting up the moveit_commander ..."
+    print("Setting up the moveit_commander ...")
     tutorial = MoveGroupPythonInterfaceTutorialCustom()
 
-    print "============ Press `Enter` to execute a movement using a joint state goal ..."
-    raw_input()
+    input("============ Press `Enter` to execute a movement using a joint state goal ...")
     tutorial.go_to_joint_state()
 
-    print "============ Press `Enter` to execute a movement using a pose goal ..."
-    raw_input()
+    input("============ Press `Enter` to execute a movement using a pose goal ...")
     tutorial.go_to_pose_goal()
 
-    print "============ Press `Enter` to plan and display a Cartesian path ..."
-    raw_input()
+    input("============ Press `Enter` to plan and display a Cartesian path ...")
     cartesian_plan, fraction = tutorial.plan_cartesian_path()
 
-    print "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
-    raw_input()
+    input("============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ...")
     tutorial.display_trajectory(cartesian_plan)
 
-    print "============ Press `Enter` to execute a saved path ..."
-    raw_input()
+    input("============ Press `Enter` to execute a saved path ...")
     tutorial.execute_plan(cartesian_plan)
 
-    print "============ Press `Enter` to add a box to the planning scene ..."
-    raw_input()
+    input("============ Press `Enter` to add a box to the planning scene ...")
     tutorial.add_box()
 
-    print "============ Press `Enter` to attach a Box to the Panda robot ..."
-    raw_input()
+    input("============ Press `Enter` to attach a Box to the Panda robot ...")
     tutorial.attach_box()
 
-    print "============ Press `Enter` to plan and execute a path with an attached collision object ..."
-    raw_input()
+    input("============ Press `Enter` to plan and execute a path with an attached collision object ...")
     cartesian_plan, fraction = tutorial.plan_cartesian_path(scale=-1)
     tutorial.execute_plan(cartesian_plan)
 
-    print "============ Press `Enter` to detach the box from the Panda robot ..."
-    raw_input()
+    input("============ Press `Enter` to detach the box from the Panda robot ...")
     tutorial.detach_box()
 
-    print "============ Press `Enter` to remove the box from the planning scene ..."
-    raw_input()
+    input("============ Press `Enter` to remove the box from the planning scene ...")
     tutorial.remove_box()
 
-    print "============ Python tutorial demo complete!"
+    print("============ Python tutorial demo complete!")
   except rospy.ROSInterruptException:
-    print 'ROS'
+    print('ROSInterrupt')
     return
-  except KeyboardInterrupt:
-    print 'KEYBOARD INTERRRUPTED'
+  except (KeyboardInterrupt, EOFError):
+    print('Keyboard Interrupt')
     return
-  
+
 if __name__ == "__main__":
   main()
